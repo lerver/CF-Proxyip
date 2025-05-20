@@ -1,15 +1,8 @@
-import sys
-import io
 import dns.resolver
 import time
 import requests
 import socket
 import os
-import subprocess
-
-# 解决Windows命令行输出中文报错
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 def load_country_mapping(file_path):
     country_mapping = {}
@@ -34,7 +27,7 @@ def check_tcp_connection(ip, port=443, timeout=5):
     except (socket.timeout, socket.error):
         return False
 
-def get_country_info(ip, country_mapping, retries=6, delay=1):
+def get_country_info(ip, country_mapping, retries=10, delay=1):
     attempt = 0
     while attempt < retries:
         if not check_tcp_connection(ip, port=443):
@@ -64,13 +57,13 @@ def get_country_info(ip, country_mapping, retries=6, delay=1):
 def collect_all_ips(manual_ip_file, domains_file, output_file):
     all_ips = set()
     if os.path.exists(manual_ip_file):
-        with open(manual_ip_file, 'r', encoding='utf-8') as f:
+        with open(manual_ip_file, 'r') as f:
             for line in f:
                 ip = line.strip()
                 if ip:
                     all_ips.add(ip)
     if os.path.exists(domains_file):
-        with open(domains_file, 'r', encoding='utf-8') as f:
+        with open(domains_file, 'r') as f:
             domains = [line.strip() for line in f if line.strip()]
         for domain in domains:
             try:
@@ -84,14 +77,14 @@ def collect_all_ips(manual_ip_file, domains_file, output_file):
             except Exception as e:
                 print(f"域名 {domain} 解析失败: {e}")
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    with open(output_file, 'w', encoding='utf-8') as f:
+    with open(output_file, 'w') as f:
         for ip in sorted(all_ips):
             f.write(f"{ip}#未检测\n")
     print(f"所有采集的IP已保存到 {output_file}")
 
 def detect_all_ip_country(input_file, output_file, country_mapping):
     ip_info = {}
-    with open(input_file, 'r', encoding='utf-8') as f:
+    with open(input_file, 'r') as f:
         for line in f:
             if '#' in line:
                 ip, info = line.strip().split('#', 1)
@@ -100,18 +93,18 @@ def detect_all_ip_country(input_file, output_file, country_mapping):
         if info == "未检测":
             country = get_country_info(ip, country_mapping)
             ip_info[ip] = country
-    with open(output_file, 'w', encoding='utf-8') as f:
+    with open(output_file, 'w') as f:
         for ip, info in sorted(ip_info.items(), key=lambda x: x[1]):
             f.write(f"{ip}#{info}\n")
     print(f"所有IP归属地检测完成，已更新到 {output_file}")
 
 def extract_ips_from_file(input_file, output_file):
     try:
-        with open(input_file, 'r', encoding='utf-8') as file:
+        with open(input_file, 'r') as file:
             lines = file.readlines()
         ips = {line.strip().split('#')[0] for line in lines if '#' in line}
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        with open(output_file, 'w', encoding='utf-8') as file:
+        with open(output_file, 'w') as file:
             for ip in sorted(ips):
                 file.write(f"{ip}\n")
         print(f"提取的IP已保存到 {output_file}")
@@ -135,7 +128,7 @@ def filter_ips_by_allowed_countries(
         unreachable_ips = []
         unreachable_info = []
 
-        with open(input_file, 'r', encoding='utf-8') as file:
+        with open(input_file, 'r') as file:
             for line in file:
                 parts = line.strip().split('#')
                 if len(parts) == 2:
@@ -159,16 +152,16 @@ def filter_ips_by_allowed_countries(
             (blocked_with_info_file, sorted(blocked_info, key=lambda x: x.split('#')[1]))
         ]:
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, 'w', encoding='utf-8') as f:
+            with open(path, 'w') as f:
                 for item in data:
                     f.write(f"{item}\n")
 
         os.makedirs(os.path.dirname(unreachable_ip_file), exist_ok=True)
-        with open(unreachable_ip_file, 'w', encoding='utf-8') as f:
+        with open(unreachable_ip_file, 'w') as f:
             for ip in sorted(unreachable_ips):
                 f.write(f"{ip}\n")
         os.makedirs(os.path.dirname(unreachable_with_info_file), exist_ok=True)
-        with open(unreachable_with_info_file, 'w', encoding='utf-8') as f:
+        with open(unreachable_with_info_file, 'w') as f:
             for item in sorted(unreachable_info, key=lambda x: x.split('#')[1]):
                 f.write(f"{item}\n")
 
@@ -185,24 +178,14 @@ def filter_ips_by_allowed_countries(
 def save_ip_txt_for_cloudflarescanner(allowed_ip_file, target_path):
     try:
         os.makedirs(os.path.dirname(target_path), exist_ok=True)
-        with open(allowed_ip_file, 'r', encoding='utf-8') as fr:
+        with open(allowed_ip_file, 'r') as fr:
             lines = fr.readlines()
-        with open(target_path, 'w', encoding='utf-8') as fw:
+        with open(target_path, 'w') as fw:
             for line in lines:
                 fw.write(line)
         print(f"已保存 {target_path}")
-
-        # 计算IP数量
-        ip_count = sum(1 for line in open(target_path, 'r', encoding='utf-8') if line.strip())
-
-        exe_path = os.path.join(os.path.dirname(target_path), "CloudflareScanner.exe")
-        if os.path.exists(exe_path):
-            print(f"正在运行 {exe_path} ...")
-            subprocess.Popen([exe_path, "-dn", str(ip_count)], cwd=os.path.dirname(target_path))
-        else:
-            print(f"没有找到 {exe_path}，请检查 CloudflareScanner.exe 是否存在于 {os.path.dirname(target_path)}")
     except Exception as e:
-        print(f"保存或执行 CloudflareScanner.exe 时发生错误: {e}")
+        print(f"保存 {target_path} 时发生错误: {e}")
 
 if __name__ == "__main__":
     os.makedirs("ips_with_country", exist_ok=True)
