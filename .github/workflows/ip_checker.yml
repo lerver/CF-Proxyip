@@ -1,17 +1,17 @@
 name: IP 检测与处理脚本
 
 on:
-  workflow_dispatch: # 手动触发
+  workflow_dispatch:
   schedule:
-    - cron: '0 */3 * * *' # 每3小时运行一次（UTC时间，注意时区）
+    - cron: '0 */3 * * *'
 
 permissions:
-  contents: write   # 允许读写仓库内容
-  actions: write    # 允许管理Actions本身
+  contents: write
+  actions: write
 
 jobs:
   run-script:
-    runs-on: windows-latest  # 因为有 .exe，建议用windows runner
+    runs-on: windows-latest
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -26,12 +26,12 @@ jobs:
 
       - name: 检查CloudflareScanner.exe是否存在
         run: |
-          if not exist CloudflareScanner\CloudflareScanner.exe (
-            echo "CloudflareScanner.exe 不存在"
-            exit /b 1
-          ) else (
-            echo "CloudflareScanner.exe 存在"
-          )
+          if (!(Test-Path "CloudflareScanner\CloudflareScanner.exe")) {
+            Write-Host "CloudflareScanner.exe 不存在"
+            exit 1
+          } else {
+            Write-Host "CloudflareScanner.exe 存在"
+          }
 
       - name: 运行脚本
         run: python DNS2Geo.py
